@@ -1,14 +1,13 @@
+// src/index.js
 const express = require('express');
-const { middleware } = require('@line/bot-sdk');
-const { lineConfig } = require('./configs/lineConfig');
-const lineRoutes = require('./routes/lineRoutes');
+const proxyRoutes = require('./routes/lineProxyRoutes'); // ✅ 中継用ルートに変更
 
 const app = express();
 
-// ✅ ここ！Webhookルート定義（重要）
-app.use('/line/webhook', middleware(lineConfig), lineRoutes);
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ✅ Webhookルートは中継処理に任せる
+app.use('/line/webhook', proxyRoutes);
 
 module.exports = app;

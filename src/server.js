@@ -1,8 +1,9 @@
-// src/server.js
-require('dotenv').config();
-const app = require('./index');
-const PORT = process.env.PORT || 3000;
+const express = require('express');
+const { lineWebhook } = require('../controllers/lineController');
 
-app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
-});
+const router = express.Router();
+
+// ✅ POST /line/webhook に対応するようにここは `/`
+router.post('/', lineWebhook);
+
+module.exports = router;

@@ -1,9 +1,20 @@
-const express = require('express');
-const { lineWebhook } = require('../controllers/lineController');
+const { saveChatHistory } = require('../services/chatLogService');
 
-const router = express.Router();
+router.post('/push', async (req, res) => {
+  const { userId, message } = req.body;
 
-// ✅ ここが '/' であること（すでに '/line/webhook' でマウント済み）
-router.post('/', lineWebhook);
+  if (!userId || !message) return res.status(400).json({ error: 'Missing fields' });
 
-module.exports = router;
+  try {
+    // LINE送信
+    const result = await pushMessageToUser(userId, message);
+
+    // Firestore保存
+    await saveChatHistory(userId, 'admin', message);
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    console.error('❌ pushMessage error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});

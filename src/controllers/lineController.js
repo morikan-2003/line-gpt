@@ -2,14 +2,11 @@
 const { handleEvent } = require('../services/messageService');
 
 async function lineWebhook(req, res) {
-  try {
-    const events = req.body.events;
-    const results = await Promise.all(events.map(handleEvent));
-    return res.json(results);
-  } catch (err) {
-    console.error('lineWebhook Error:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
+  const events = req.body.events || [];
+
+  await Promise.all(events.map((event) => handleEvent(event)));
+
+  return res.status(200).send('OK');
 }
 
 module.exports = {

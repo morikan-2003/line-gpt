@@ -1,9 +1,7 @@
-// src/server.js
-require('dotenv').config();
-const app = require('./index');
+const app = require('./index'); // ./index.js から app を読み込む
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

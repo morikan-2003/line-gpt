@@ -1,42 +1,79 @@
-// src/services/openaiService.js
 require('dotenv').config();
 const OpenAI = require('openai');
 const { getRelevantContext } = require('./ragService');
+const { logUserQuery, logUnhandledQuery } = require('./logService');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-/**
- * ユーザーのメッセージを受け取り、RAGで文脈検索を行ってからChatGPTで回答を生成
- */
-async function getChatGPTResponse(userMessage) {
-  try {
-    // 1. クエリから関連コンテキストを取得（ベクトル検索）
-    const relevantText = await getRelevantContext(userMessage);
-    console.log('[RAGコンテキスト]', relevantText || '(該当なし)');
+const FALLBACK_TEXT = '申し訳ございません。その件についての正確な情報がありませんでしたので、は担当者に確認いたします。より急ぎでご回答を求められる場合には、こちらよりお問い合わせください。\nhttps://proudsync.studio.site/contact';
 
-    // 2. ChatGPTへ送るプロンプトを構成
-    const systemPrompt = relevantText
-      ? `あなたは知識のあるアシスタントです。以下のコンテキストを参考に、できるだけ正確に答えてください：\n\n${relevantText}`
-      : 'あなたは知識のあるアシスタントです。ユーザーの質問に丁寧に答えてください。';
+async function getChatGPTResponse(userMessage, userId = 'unknown') {
+  try {
+    // 🔍 RAGからコンテキストとスコアを取得
+    const { context, score } = await getRelevantContext(userMessage);
+    const relevantContext = typeof context === 'string' ? context : '';
+    console.log('[RAGコンテキスト]', { context: relevantContext, score });
+
+    // 🔧 プロンプト生成
+    const systemPrompt = `
+あなたは正確で誠実なアシスタントです。
+
+ユーザーが「こんにちは」「ありがとう」など挨拶・雑談をした場合には、自然で丁寧に返してください。
+
+以下の【参照情報】に基づいて質問に答えてください。
+情報が含まれていない場合、または曖昧な場合には、次のフォールバック文を活用してください：
+
+「${FALLBACK_TEXT}」
+
+【参照情報】
+${relevantContext}
+    `.trim();
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage }
+      { role: 'user', content: userMessage },
     ];
 
-    // 3. ChatGPTへリクエスト
+    // 🔁 ChatGPT API呼び出し
     const response = await openai.chat.completions.create({
-      model: process.env.GPT_MODEL || 'gpt-4',
+      model: process.env.GPT_MODEL || 'gpt-4o-mini',
       messages,
       max_tokens: 1000,
       temperature: 0.7,
     });
 
-    return response.choices[0].message.content.trim();
+    const answer = response.choices?.[0]?.message?.content?.trim() || '';
+
+    // 🧠 回答がフォールバックっぽかったら未対応ログに記録
+    const isFallback = answer.includes('申し訳ございません') && answer.includes('担当者に確認');
+
+    if (isFallback) {
+      await logUnhandledQuery({
+        userId,
+        message: userMessage,
+        reason: 'ChatGPTが曖昧回答を返したため',
+      });
+    }
+
+    // 📚 全ての質問ログに保存
+    await logUserQuery({
+      userId,
+      message: userMessage,
+      response: answer,
+      relevantContext,
+    });
+
+    return answer;
+
   } catch (err) {
-    console.error('getChatGPTResponse Error:', err);
+    console.error('❌ getChatGPTResponse Error:', err);
+
+    if (err.response) {
+      console.error('🔍 OpenAI API response error:', err.response.status, err.response.data);
+    }
+
     return '申し訳ありません、エラーが発生しました。';
   }
 }

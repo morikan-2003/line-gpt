@@ -31,7 +31,10 @@ async function main() {
     vectors.push({
       id: doc.id,
       values: embedding,
-      metadata: { text: doc.text },
+      metadata: {
+        text: doc.text,
+        type: doc.type || 'general', // ← 🔥 ここで type を反映
+      },
     });
   }
 
